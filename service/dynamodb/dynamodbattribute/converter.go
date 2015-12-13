@@ -360,6 +360,7 @@ func convertToTyped(in, out interface{}) error {
 }
 
 func convertTo(in interface{}) *dynamodb.AttributeValue {
+	aTry := &dynamodb.AttributeValue{}
 	a := &dynamodb.AttributeValue{}
 
 	if in == nil {
@@ -369,19 +370,29 @@ func convertTo(in interface{}) *dynamodb.AttributeValue {
 	}
 
 	if m, ok := in.(map[string]interface{}); ok {
-		a.M = make(map[string]*dynamodb.AttributeValue)
+		aTry.M = make(map[string]*dynamodb.AttributeValue)
 		for k, v := range m {
-			a.M[k] = convertTo(v)
+			aTry.M[k] = convertTo(v)
 		}
-		return a
+		if len(aTry.M) == 0 {
+			a.NULL = new(bool)
+			*a.NULL = true
+			return a
+		}
+		return aTry
 	}
 
 	if l, ok := in.([]interface{}); ok {
-		a.L = make([]*dynamodb.AttributeValue, len(l))
+		aTry.L = make([]*dynamodb.AttributeValue, len(l))
 		for index, v := range l {
-			a.L[index] = convertTo(v)
+			aTry.L[index] = convertTo(v)
 		}
-		return a
+		if len(aTry.L) == 0 {
+			a.NULL = new(bool)
+			*a.NULL = true
+			return a
+		}
+		return aTry
 	}
 
 	// Only primitive types should remain.
@@ -404,8 +415,14 @@ func convertTo(in interface{}) *dynamodb.AttributeValue {
 			a.N = new(string)
 			*a.N = n.String()
 		} else {
-			a.S = new(string)
-			*a.S = v.String()
+			aTry.S = new(string)
+			*aTry.S = v.String()
+			if *aTry.S == "" {
+				a.NULL = new(bool)
+				*a.NULL = true
+				return a
+			}
+			return aTry
 		}
 	default:
 		panic(fmt.Sprintf("the type %s is not supported", v.Type().String()))
